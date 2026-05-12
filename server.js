@@ -26,32 +26,6 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function fieldCard(label, value) {
-  return `
-    <div style="padding:16px 18px; background:#ffffff; border:1px solid #e5e7eb; border-radius:14px;">
-      <div style="font-size:13px; color:#6b7280; font-weight:700; text-transform:uppercase; margin-bottom:6px;">
-        ${escapeHtml(label)}
-      </div>
-      <div style="font-size:22px; color:#111827; font-weight:800;">
-        ${escapeHtml(value)}
-      </div>
-    </div>
-  `;
-}
-
-function section(title, content) {
-  return `
-    <div style="margin-top:24px;">
-      <h2 style="font-size:20px; margin:0 0 12px; color:#9c2324;">
-        ${escapeHtml(title)}
-      </h2>
-      <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:16px; padding:18px;">
-        ${content}
-      </div>
-    </div>
-  `;
-}
-
 const serviceFileFields = [
   { serviceName: "Fönsterputsning", fieldName: "fonsterputsning_bilder" },
   { serviceName: "Städning", fieldName: "stadning_bilder" },
@@ -88,20 +62,14 @@ app.post("/send-email", upload.fields([
     const filesByField = req.files || {};
     const attachments = [];
     let cidCounter = 0;
-    const customerHtml = `
-  <div style="display:grid; gap:12px;">
-    ${fieldCard("Namn", req.body.Namn)}
-    ${fieldCard("E-post", req.body["E-post"])}
-    ${fieldCard("Telefon", req.body.Telefonnummer)}
-  </div>
-`;
 
     let summaryHtml = escapeHtml(req.body.Sammanfattning || "Ny offertförfrågan")
-  .replaceAll("Ny offertförfrågan från hemsidan", "")
-  .replaceAll("KUNDUPPGIFTER", "")
-  .replaceAll("Namn:", "")
-  .replaceAll("E-post:", "")
-  .replaceAll("Telefon:", "")
+  .replaceAll("Ny offertförfrågan från hemsidan", "<h1 style='font-size:26px;margin:0 0 18px;'>Ny offertförfrågan från hemsidan</h1>")
+  .replaceAll("KUNDUPPGIFTER", "<h2 style='font-size:21px;margin:26px 0 8px;'>Kunduppgifter</h2>")
+  .replaceAll("VALDA TJÄNSTER", "<h2 style='font-size:21px;margin:26px 0 8px;'>Valda tjänster</h2>")
+  .replaceAll("TJÄNSTEDETALJER", "<h2 style='font-size:21px;margin:26px 0 8px;'>Tjänstedetaljer</h2>")
+  .replaceAll("MEDDELANDE", "<h2 style='font-size:21px;margin:26px 0 8px;'>Övrigt tillägg</h2>")
+  .replaceAll("SAMTYCKE", "<h2 style='font-size:21px;margin:26px 0 8px;'>Samtycke</h2>")
   .replaceAll("================================", "")
   .replaceAll("--------------------------------", "")
   .replaceAll("\n\n", "<br><br>")
@@ -149,33 +117,28 @@ app.post("/send-email", upload.fields([
       subject: "Ny offertförfrågan från hemsidan",
       text: req.body.Sammanfattning || "Ny offertförfrågan",
       html: `
-  <div style="margin:0; padding:0; background:#f3f4f6; font-family:Arial, sans-serif; color:#1f2937;">
-    <div style="max-width:760px; margin:0 auto; padding:28px 16px;">
+  <div style="margin:0; padding:24px; background:#f3f4f6; font-family:Arial, sans-serif; color:#222; line-height:1.55;">
+    <div style="max-width:760px; margin:0 auto; background:#ffffff; border-radius:18px; overflow:hidden; border:1px solid #e5e7eb;">
 
-      <div style="background:#9c2324; color:#ffffff; padding:28px 30px; border-radius:18px 18px 0 0;">
-        <p style="margin:0 0 8px; font-size:13px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;">
+      <div style="background:#9c2324; color:#ffffff; padding:28px 30px;">
+        <div style="font-size:13px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:8px;">
           Lokomotiv Städ
-        </p>
+        </div>
         <h1 style="margin:0; font-size:32px; line-height:1.2;">
           Ny offertförfrågan
         </h1>
       </div>
 
-      <div style="background:#ffffff; padding:30px; border-radius:0 0 18px 18px; border:1px solid #e5e7eb; border-top:none;">
-
-        ${section("Viktig kundinfo", customerHtml)}
-
-        ${section("Offertförfrågan", `
-          <div style="font-size:16px; line-height:1.75; color:#374151;">
-            ${summaryHtml}
-          </div>
-        `)}
+      <div style="padding:28px 30px;">
+        <div style="padding:22px; background:#f9fafb; border-radius:14px; border:1px solid #e5e7eb; font-size:17px; line-height:1.75;">
+          ${summaryHtml}
+        </div>
 
         <p style="margin:24px 0 0; color:#6b7280; font-size:13px;">
           Skickat automatiskt från lokomotivstad.se
         </p>
-
       </div>
+
     </div>
   </div>
 `,
