@@ -213,7 +213,7 @@ app.post("/send-email", upload.fields([
     summaryHtml = summaryHtml.replace(/\[\[BILDER_[^\]]+\]\]/g, "");
 
     const { data, error } = await resend.emails.send({
-      from: "Lokomotiv Städ <noreply@lokomotivstad.se>",
+      from: "Lokomotiv Städ <onboarding@resend.dev>",
       to: [process.env.EMAIL_TO],
       subject: "Ny offertförfrågan från hemsidan",
       text: req.body.Sammanfattning || "Ny offertförfrågan",
