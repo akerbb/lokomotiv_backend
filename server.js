@@ -30,6 +30,9 @@ app.use(cors({
 origin:[
 "https://lokomotivstad.se",
 "https://www.lokomotivstad.se",
+  
+"https://sensational-pastelito-e0a6c8.netlify.app",
+  
 "http://localhost:5500",
 "http://127.0.0.1:5500"
 ],
