@@ -11,11 +11,15 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "multer": "^2.1.1",
-    "nodemailer": "^8.0.7",
-    "resend": "^6.12.3"
+  "bcryptjs": "^3.0.2",
+  "cookie-parser": "^1.4.7",
+  "cors": "^2.8.6",
+  "dotenv": "^17.4.2",
+  "express": "^5.2.1",
+  "jsonwebtoken": "^9.0.2",
+  "multer": "^2.1.1",
+  "nodemailer": "^8.0.7",
+  "resend": "^6.12.3"
   }
 }
+
