@@ -4,6 +4,7 @@
     "username": "emil",
     "name": "Emil",
     "role": "admin",
-    "passwordHash": "$2b$10$yxgy8orHvu8GJTQI70obUOhQzsPK.zvNha2g50MH/pUmPplaq85wK"
+    "passwordHash": "$2b$10$yxgy8orHvu8GJTQI70obUOhQzsPK.zvNha2g50MH/pUmPplaq85wK",
+    "mustChangePassword": false
   }
 ]
