@@ -327,16 +327,12 @@ maxAge:
 );
 
 res.json({
-
-message:"Inloggad",
-
-user:{
-
-name:user.name,
-role:user.role
-
-}
-
+  message: "Inloggad",
+  mustChangePassword: user.mustChangePassword === true,
+  user: {
+    name: user.name,
+    role: user.role
+  }
 });
 
 });
@@ -371,6 +367,39 @@ user:req.user
 });
 
 });
+
+app.post("/change-password", checkAuth, async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+
+  if (!oldPassword || !newPassword) {
+    return res.status(400).json({ message: "Fyll i båda lösenorden" });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ message: "Nytt lösenord måste vara minst 8 tecken" });
+  }
+
+  const users = getUsers();
+  const user = users.find(u => u.id === req.user.id);
+
+  if (!user) {
+    return res.status(404).json({ message: "Användaren hittades inte" });
+  }
+
+  const valid = await bcrypt.compare(oldPassword, user.passwordHash);
+
+  if (!valid) {
+    return res.status(401).json({ message: "Fel nuvarande lösenord" });
+  }
+
+  user.passwordHash = await bcrypt.hash(newPassword, 10);
+  user.mustChangePassword = false;
+
+  saveJson(usersFile, users);
+
+  res.json({ message: "Lösenordet är ändrat" });
+});
+
 app.get("/api/events", checkAuth, (req, res) => {
   res.json(readJson(eventsFile));
 });
