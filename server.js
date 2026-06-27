@@ -4,103 +4,35 @@ const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
 const { Resend } = require("resend");
-
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const cookieParser = require("cookie-parser");
 const fs = require("fs");
 const path = require("path");
+
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const JWT_SECRET =
-process.env.JWT_SECRET || "change-this";
-
-const usersFile =
-path.join(__dirname,"users.json");
-
-const eventsFile =
-path.join(__dirname,"events.json");
-
-const messagesFile =
-path.join(__dirname,"messages.json");
+const eventsFile = path.join(__dirname, "events.json");
+const messagesFile = path.join(__dirname, "messages.json");
 
 app.use(cors({
-
-origin:[
-"https://lokomotivstad.se",
-"https://www.lokomotivstad.se",
-  
-"https://benevolent-truffle-244260.netlify.app",
-  
-"http://localhost:5500",
-"http://127.0.0.1:5500"
-],
-
-credentials:true
-
+  origin: [
+    "https://lokomotivstad.se",
+    "https://www.lokomotivstad.se",
+    "https://benevolent-truffle-244260.netlify.app",
+    "http://localhost:5500",
+    "http://127.0.0.1:5500"
+  ],
+  credentials: true
 }));
 
 app.use(express.json());
 
-app.use(cookieParser());
-
-function readJson(file){
-
-return JSON.parse(
-fs.readFileSync(file,"utf8")
-);
-
+function readJson(file) {
+  if (!fs.existsSync(file)) return [];
+  return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
-function saveJson(file,data){
-
-fs.writeFileSync(
-file,
-JSON.stringify(data,null,2)
-);
-
-}
-
-function getUsers(){
-
-return readJson(usersFile);
-
-}
-
-function checkAuth(req,res,next){
-
-const token =
-req.cookies.token;
-
-if(!token){
-
-return res.status(401)
-.json({
-message:"Inte inloggad"
-});
-
-}
-
-try{
-
-req.user=
-jwt.verify(
-token,
-JWT_SECRET
-);
-
-next();
-
-}catch{
-
-return res.status(401)
-.json({
-message:"Ogiltig session"
-});
-
-}
-
+function saveJson(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
 const upload = multer({
@@ -250,162 +182,11 @@ app.get("/", (req, res) => {
   res.send("Lokomotiv backend fungerar");
 });
 
-app.post("/login",
-
-async(req,res)=>{
-
-const {
-username,
-password
-}=req.body;
-
-const users=
-getUsers();
-
-const user=
-users.find(
-u=>u.username===username
-);
-
-if(!user){
-
-return res.status(401)
-.json({
-message:"Fel login"
-});
-
-}
-
-const valid=
-await bcrypt.compare(
-password,
-user.passwordHash
-);
-
-if(!valid){
-
-return res.status(401)
-.json({
-message:"Fel login"
-});
-
-}
-
-const token=
-jwt.sign({
-
-id:user.id,
-username:user.username,
-name:user.name,
-role:user.role
-
-},
-
-JWT_SECRET,
-
-{
-
-expiresIn:"8h"
-
-});
-
-res.cookie(
-
-"token",
-token,
-
-{
-
-httpOnly:true,
-secure:true,
-sameSite:"none",
-maxAge:
-8*60*60*1000
-
-}
-
-);
-
-res.json({
-  message: "Inloggad",
-  mustChangePassword: user.mustChangePassword === true,
-  user: {
-    name: user.name,
-    role: user.role
-  }
-});
-
-});
-
-app.post("/logout",(req,res)=>{
-
-res.clearCookie(
-"token",
-{
-httpOnly:true,
-secure:true,
-sameSite:"none"
-}
-);
-
-res.json({
-message:"Utloggad"
-});
-
-});
-
-
-app.get(
-"/me",
-checkAuth,
-
-(req,res)=>{
-
-res.json({
-loggedIn:true,
-user:req.user
-});
-
-});
-
-app.post("/change-password", checkAuth, async (req, res) => {
-  const { oldPassword, newPassword } = req.body;
-
-  if (!oldPassword || !newPassword) {
-    return res.status(400).json({ message: "Fyll i båda lösenorden" });
-  }
-
-  if (newPassword.length < 8) {
-    return res.status(400).json({ message: "Nytt lösenord måste vara minst 8 tecken" });
-  }
-
-  const users = getUsers();
-  const user = users.find(u => u.id === req.user.id);
-
-  if (!user) {
-    return res.status(404).json({ message: "Användaren hittades inte" });
-  }
-
-  const valid = await bcrypt.compare(oldPassword, user.passwordHash);
-
-  if (!valid) {
-    return res.status(401).json({ message: "Fel nuvarande lösenord" });
-  }
-
-  user.passwordHash = await bcrypt.hash(newPassword, 10);
-  user.mustChangePassword = false;
-
-  saveJson(usersFile, users);
-
-  res.json({ message: "Lösenordet är ändrat" });
-});
-
-app.get("/api/events", checkAuth, (req, res) => {
+app.get("/api/events", (req, res) => {
   res.json(readJson(eventsFile));
 });
 
-
-app.post("/api/events", checkAuth, (req, res) => {
+app.post("/api/events", (req, res) => {
   const events = readJson(eventsFile);
 
   const event = {
@@ -418,19 +199,14 @@ app.post("/api/events", checkAuth, (req, res) => {
   };
 
   events.push(event);
-
   saveJson(eventsFile, events);
 
   res.json(event);
 });
 
-
-app.delete("/api/events/:id", checkAuth, (req, res) => {
+app.delete("/api/events/:id", (req, res) => {
   const events = readJson(eventsFile);
-
-  const filteredEvents = events.filter(event => {
-    return event.id !== req.params.id;
-  });
+  const filteredEvents = events.filter(event => event.id !== req.params.id);
 
   saveJson(eventsFile, filteredEvents);
 
@@ -439,13 +215,9 @@ app.delete("/api/events/:id", checkAuth, (req, res) => {
   });
 });
 
-
-app.post("/api/events/:id/comments", checkAuth, (req, res) => {
+app.post("/api/events/:id/comments", (req, res) => {
   const events = readJson(eventsFile);
-
-  const event = events.find(event => {
-    return event.id === req.params.id;
-  });
+  const event = events.find(event => event.id === req.params.id);
 
   if (!event) {
     return res.status(404).json({
@@ -459,7 +231,7 @@ app.post("/api/events/:id/comments", checkAuth, (req, res) => {
 
   event.comments.push({
     id: Date.now().toString(),
-    sender: req.user.name,
+    sender: req.body.sender || "Besökare",
     text: req.body.text,
     createdAt: new Date().toLocaleString("sv-SE")
   });
@@ -469,28 +241,26 @@ app.post("/api/events/:id/comments", checkAuth, (req, res) => {
   res.json(event);
 });
 
-
-app.get("/api/messages", checkAuth, (req, res) => {
+app.get("/api/messages", (req, res) => {
   res.json(readJson(messagesFile));
 });
 
-
-app.post("/api/messages", checkAuth, (req, res) => {
+app.post("/api/messages", (req, res) => {
   const messages = readJson(messagesFile);
 
   const message = {
     id: Date.now().toString(),
-    sender: req.user.name,
+    sender: req.body.sender || "Besökare",
     text: req.body.text,
     createdAt: new Date().toLocaleString("sv-SE")
   };
 
   messages.push(message);
-
   saveJson(messagesFile, messages);
 
   res.json(message);
 });
+
 app.post("/send-email", upload.fields([
   { name: "fonsterputsning_bilder", maxCount: 10 },
   { name: "stadning_bilder", maxCount: 10 },
