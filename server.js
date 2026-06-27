@@ -21,10 +21,12 @@ app.use(cors({
     "http://localhost:5500",
     "http://127.0.0.1:5500"
   ],
-  credentials: true
+  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type"]
 }));
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 function readJson(file) {
   if (!fs.existsSync(file)) return [];
@@ -210,9 +212,7 @@ app.delete("/api/events/:id", (req, res) => {
 
   saveJson(eventsFile, filteredEvents);
 
-  res.json({
-    message: "Event borttaget"
-  });
+  res.json({ message: "Event borttaget" });
 });
 
 app.post("/api/events/:id/comments", (req, res) => {
@@ -220,9 +220,7 @@ app.post("/api/events/:id/comments", (req, res) => {
   const event = events.find(event => event.id === req.params.id);
 
   if (!event) {
-    return res.status(404).json({
-      message: "Event hittades inte"
-    });
+    return res.status(404).json({ message: "Event hittades inte" });
   }
 
   if (!Array.isArray(event.comments)) {
@@ -270,6 +268,20 @@ app.post("/send-email", upload.fields([
   { name: "fasadtvatt_bilder", maxCount: 10 }
 ]), async (req, res) => {
   try {
+    if (!process.env.RESEND_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: "RESEND_API_KEY saknas"
+      });
+    }
+
+    if (!process.env.EMAIL_TO) {
+      return res.status(500).json({
+        success: false,
+        error: "EMAIL_TO saknas"
+      });
+    }
+
     const filesByField = req.files || {};
     const attachments = [];
     let cidCounter = 0;
@@ -351,14 +363,21 @@ app.post("/send-email", upload.fields([
     });
 
     if (error) {
-      console.error(error);
-      return res.status(500).json({ success: false, error });
+      console.error("Resend error:", error);
+      return res.status(500).json({
+        success: false,
+        error
+      });
     }
 
-    res.json({ success: true, data });
+    res.json({
+      success: true,
+      data
+    });
 
   } catch (error) {
-    console.error(error);
+    console.error("Server error:", error);
+
     res.status(500).json({
       success: false,
       error: error.message
