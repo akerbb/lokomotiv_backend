@@ -309,6 +309,23 @@ const contactUpload = upload.fields([
   { name: "fasadtvatt_bilder", maxCount: 10 }
 ]);
 
+function contactSizeGuard(req, res, next) {
+  const contentLength = Number(
+    req.headers["content-length"] || 0
+  );
+
+  const maxRequestSize = 12 * 1024 * 1024; // 12 MB
+
+  if (contentLength > maxRequestSize) {
+    return res.status(413).json({
+      success: false,
+      error: "Förfrågan är för stor. Max 10 MB bilder totalt."
+    });
+  }
+
+  next();
+}
+
 async function verifyTurnstile(req) {
   const token = req.body["cf-turnstile-response"];
 
@@ -341,6 +358,45 @@ async function verifyTurnstile(req) {
   }
 }
 
+function detectImageType(buffer) {
+  if (!buffer || buffer.length < 12) {
+    return null;
+  }
+
+  // JPEG
+  if (
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff
+  ) {
+    return "image/jpeg";
+  }
+
+  // PNG
+  if (
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return "image/png";
+  }
+
+  // WEBP
+  const riff = buffer.subarray(0, 4).toString("ascii");
+  const webp = buffer.subarray(8, 12).toString("ascii");
+
+  if (riff === "RIFF" && webp === "WEBP") {
+    return "image/webp";
+  }
+
+  return null;
+}
+
 async function handleContact(req, res) {
   try {
         // Honeypot - botar som fyller i detta fält ignoreras.
@@ -369,14 +425,33 @@ if (!turnstileValid) {
 }
 
     // Samla alla uppladdade filer.
-    const allFiles = Object.values(req.files || {}).flat();
+const allFiles = Object.values(req.files || {}).flat();
 
-    if (allFiles.length > 10) {
-      return res.status(400).json({
-        success: false,
-        error: "Max 10 bilder får skickas."
-      });
-    }
+// Kontrollera att filerna verkligen är JPG, PNG eller WebP.
+for (const file of allFiles) {
+  const detectedType = detectImageType(file.buffer);
+
+  if (!detectedType) {
+    return res.status(400).json({
+      success: false,
+      error: "En av filerna är inte en giltig JPG-, PNG- eller WebP-bild."
+    });
+  }
+
+  if (detectedType !== file.mimetype) {
+    return res.status(400).json({
+      success: false,
+      error: "En av bildernas filtyp stämmer inte."
+    });
+  }
+}
+
+if (allFiles.length > 10) {
+  return res.status(400).json({
+    success: false,
+    error: "Max 10 bilder får skickas."
+  });
+}
 
     const totalFileSize = allFiles.reduce(
       (total, file) => total + file.size,
@@ -547,9 +622,11 @@ if (!turnstileValid) {
   }
 }
 
+
 app.post(
   "/api/contact",
   contactLimiter,
+  contactSizeGuard,
   contactUpload,
   handleContact
 );
