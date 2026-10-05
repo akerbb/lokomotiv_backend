@@ -339,7 +339,9 @@ async function handleContact(req, res) {
 
     // Grundläggande formulärvalidering.
     const name = String(req.body.Namn || "").trim();
-    const email = String(req.body["E-post"] || "").trim();
+    const email = String(req.body["E-post"] || "")
+      .trim()
+      .replace(/[\r\n]/g, "");
     const phone = String(req.body.Telefonnummer || "").trim();
     const consent = String(req.body.Samtycke || "").trim();
 
