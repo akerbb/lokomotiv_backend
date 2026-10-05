@@ -4,11 +4,14 @@ const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
 const { rateLimit } = require("express-rate-limit");
+const helmet = require("helmet");
 const { Resend } = require("resend");
 const fs = require("fs");
 const path = require("path");
 
 const app = express();
+app.set("trust proxy", 1);
+app.use(helmet());
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const eventsFile = path.join(__dirname, "events.json");
