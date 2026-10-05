@@ -6,16 +6,11 @@ const cors = require("cors");
 const { rateLimit } = require("express-rate-limit");
 const helmet = require("helmet");
 const { Resend } = require("resend");
-const fs = require("fs");
-const path = require("path");
 
 const app = express();
 app.set("trust proxy", 1);
 app.use(helmet());
 const resend = new Resend(process.env.RESEND_API_KEY);
-
-const eventsFile = path.join(__dirname, "events.json");
-const messagesFile = path.join(__dirname, "messages.json");
 
 app.use(cors({
   origin: [
@@ -26,21 +21,12 @@ app.use(cors({
     "http://127.0.0.1:5500",
     "https://loko.netlify.app"
   ],
-  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"]
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-function readJson(file) {
-  if (!fs.existsSync(file)) return [];
-  return JSON.parse(fs.readFileSync(file, "utf8"));
-}
-
-function saveJson(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
-}
 
 const allowedImageTypes = new Set([
   "image/jpeg",
@@ -223,81 +209,6 @@ app.get("/health", (req, res) => {
   res.status(200).json({
     status: "ok"
   });
-});
-
-app.get("/api/events", (req, res) => {
-  res.json(readJson(eventsFile));
-});
-
-app.post("/api/events", (req, res) => {
-  const events = readJson(eventsFile);
-
-  const event = {
-    id: Date.now().toString(),
-    title: req.body.title,
-    date: req.body.date,
-    time: req.body.time || "",
-    description: req.body.description || "",
-    comments: []
-  };
-
-  events.push(event);
-  saveJson(eventsFile, events);
-
-  res.json(event);
-});
-
-app.delete("/api/events/:id", (req, res) => {
-  const events = readJson(eventsFile);
-  const filteredEvents = events.filter(event => event.id !== req.params.id);
-
-  saveJson(eventsFile, filteredEvents);
-
-  res.json({ message: "Event borttaget" });
-});
-
-app.post("/api/events/:id/comments", (req, res) => {
-  const events = readJson(eventsFile);
-  const event = events.find(event => event.id === req.params.id);
-
-  if (!event) {
-    return res.status(404).json({ message: "Event hittades inte" });
-  }
-
-  if (!Array.isArray(event.comments)) {
-    event.comments = [];
-  }
-
-  event.comments.push({
-    id: Date.now().toString(),
-    sender: req.body.sender || "Besökare",
-    text: req.body.text,
-    createdAt: new Date().toLocaleString("sv-SE")
-  });
-
-  saveJson(eventsFile, events);
-
-  res.json(event);
-});
-
-app.get("/api/messages", (req, res) => {
-  res.json(readJson(messagesFile));
-});
-
-app.post("/api/messages", (req, res) => {
-  const messages = readJson(messagesFile);
-
-  const message = {
-    id: Date.now().toString(),
-    sender: req.body.sender || "Besökare",
-    text: req.body.text,
-    createdAt: new Date().toLocaleString("sv-SE")
-  };
-
-  messages.push(message);
-  saveJson(messagesFile, messages);
-
-  res.json(message);
 });
 
 const contactUpload = upload.fields([
