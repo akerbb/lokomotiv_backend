@@ -498,15 +498,6 @@ app.post(
   handleContact
 );
 
-// Tillfällig kompatibilitet med gamla frontend-versionen.
-// Ta bort denna route när nya frontend är deployad och verifierad.
-app.post(
-  "/send-email",
-  contactLimiter,
-  contactUpload,
-  handleContact
-);
-
 app.use((error, req, res, next) => {
   console.error("Unhandled error:", error);
 
