@@ -436,7 +436,8 @@ async function handleContact(req, res) {
     summaryHtml = summaryHtml.replace(/\[\[BILDER_[^\]]+\]\]/g, "");
 
     const { data, error } = await resend.emails.send({
-      from: "Lokomotiv Städ <offert@lokomotivstad.se>",
+      //from: "Lokomotiv Städ <offert@lokomotivstad.se>",
+      from: "Lokomotiv Städ <onboarding@resend.dev>",
       to: [process.env.EMAIL_TO],
       replyTo: email,
       subject: "Ny offertförfrågan från hemsidan",
