@@ -306,6 +306,38 @@ const contactUpload = upload.fields([
   { name: "fasadtvatt_bilder", maxCount: 10 }
 ]);
 
+async function verifyTurnstile(req) {
+  const token = req.body["cf-turnstile-response"];
+
+  if (!token) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+          secret: process.env.TURNSTILE_SECRET_KEY,
+          response: token,
+          remoteip: req.ip
+        })
+      }
+    );
+
+    const result = await response.json();
+
+    return result.success === true;
+  } catch (error) {
+    console.error("Turnstile verification failed:", error);
+    return false;
+  }
+}
+
 async function handleContact(req, res) {
   try {
         // Honeypot - botar som fyller i detta fält ignoreras.
@@ -314,6 +346,24 @@ async function handleContact(req, res) {
         success: true
       });
     }
+
+    if (!process.env.TURNSTILE_SECRET_KEY) {
+  console.error("TURNSTILE_SECRET_KEY saknas");
+
+  return res.status(500).json({
+    success: false,
+    error: "Säkerhetskontrollen är inte konfigurerad."
+  });
+}
+
+const turnstileValid = await verifyTurnstile(req);
+
+if (!turnstileValid) {
+  return res.status(403).json({
+    success: false,
+    error: "Säkerhetskontrollen misslyckades. Försök igen."
+  });
+}
 
     // Samla alla uppladdade filer.
     const allFiles = Object.values(req.files || {}).flat();
