@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
+const { rateLimit } = require("express-rate-limit");
 const { Resend } = require("resend");
 const fs = require("fs");
 const path = require("path");
@@ -38,10 +39,40 @@ function saveJson(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
+const allowedImageTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp"
+]);
+
 const upload = multer({
   storage: multer.memoryStorage(),
+
   limits: {
-    fileSize: 10 * 1024 * 1024
+    fileSize: 10 * 1024 * 1024,
+    files: 10
+  },
+
+  fileFilter(req, file, callback) {
+    if (!allowedImageTypes.has(file.mimetype)) {
+      return callback(
+        new Error("Endast JPG, PNG och WEBP är tillåtna.")
+      );
+    }
+
+    callback(null, true);
+  }
+});
+
+const contactLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+
+  message: {
+    success: false,
+    error: "För många förfrågningar. Vänta en stund och försök igen."
   }
 });
 
@@ -185,6 +216,12 @@ app.get("/", (req, res) => {
   res.send("Lokomotiv backend fungerar");
 });
 
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok"
+  });
+});
+
 app.get("/api/events", (req, res) => {
   res.json(readJson(eventsFile));
 });
@@ -260,15 +297,82 @@ app.post("/api/messages", (req, res) => {
   res.json(message);
 });
 
-app.post("/send-email", upload.fields([
+const contactUpload = upload.fields([
   { name: "fonsterputsning_bilder", maxCount: 10 },
   { name: "stadning_bilder", maxCount: 10 },
   { name: "ultrarent_bilder", maxCount: 10 },
   { name: "golvvard_bilder", maxCount: 10 },
   { name: "skyltputs_bilder", maxCount: 10 },
   { name: "fasadtvatt_bilder", maxCount: 10 }
-]), async (req, res) => {
+]);
+
+async function handleContact(req, res) {
   try {
+        // Honeypot - botar som fyller i detta fält ignoreras.
+    if (req.body._honey && String(req.body._honey).trim() !== "") {
+      return res.json({
+        success: true
+      });
+    }
+
+    // Samla alla uppladdade filer.
+    const allFiles = Object.values(req.files || {}).flat();
+
+    if (allFiles.length > 10) {
+      return res.status(400).json({
+        success: false,
+        error: "Max 10 bilder får skickas."
+      });
+    }
+
+    const totalFileSize = allFiles.reduce(
+      (total, file) => total + file.size,
+      0
+    );
+
+    if (totalFileSize > 10 * 1024 * 1024) {
+      return res.status(400).json({
+        success: false,
+        error: "Bilderna får vara max 10 MB totalt."
+      });
+    }
+
+    // Grundläggande formulärvalidering.
+    const name = String(req.body.Namn || "").trim();
+    const email = String(req.body["E-post"] || "").trim();
+    const phone = String(req.body.Telefonnummer || "").trim();
+    const consent = String(req.body.Samtycke || "").trim();
+
+    if (!name || !email || !phone) {
+      return res.status(400).json({
+        success: false,
+        error: "Namn, e-post och telefonnummer måste fyllas i."
+      });
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: "Ogiltig e-postadress."
+      });
+    }
+
+    const cleanPhone = phone.replace(/\D/g, "");
+
+    if (cleanPhone.length < 7 || cleanPhone.length > 15) {
+      return res.status(400).json({
+        success: false,
+        error: "Ogiltigt telefonnummer."
+      });
+    }
+
+    if (!consent) {
+      return res.status(400).json({
+        success: false,
+        error: "Integritetspolicyn måste godkännas."
+      });
+    }
+
     if (!process.env.RESEND_API_KEY) {
       return res.status(500).json({
         success: false,
@@ -330,8 +434,9 @@ app.post("/send-email", upload.fields([
     summaryHtml = summaryHtml.replace(/\[\[BILDER_[^\]]+\]\]/g, "");
 
     const { data, error } = await resend.emails.send({
-      from: "Lokomotiv Städ <onboarding@resend.dev>",
+      from: "Lokomotiv Städ <offert@lokomotivstad.se>",
       to: [process.env.EMAIL_TO],
+      replyTo: email,
       subject: "Ny offertförfrågan från hemsidan",
       text: req.body.Sammanfattning || "Ny offertförfrågan",
       html: `
@@ -384,6 +489,55 @@ app.post("/send-email", upload.fields([
       error: error.message
     });
   }
+}
+
+app.post(
+  "/api/contact",
+  contactLimiter,
+  contactUpload,
+  handleContact
+);
+
+// Tillfällig kompatibilitet med gamla frontend-versionen.
+// Ta bort denna route när nya frontend är deployad och verifierad.
+app.post(
+  "/send-email",
+  contactLimiter,
+  contactUpload,
+  handleContact
+);
+
+app.use((error, req, res, next) => {
+  console.error("Unhandled error:", error);
+
+  if (error instanceof multer.MulterError) {
+    let message = "Fel vid bilduppladdning.";
+
+    if (error.code === "LIMIT_FILE_SIZE") {
+      message = "En av bilderna är för stor.";
+    }
+
+    if (error.code === "LIMIT_FILE_COUNT") {
+      message = "Max 10 bilder får laddas upp.";
+    }
+
+    return res.status(400).json({
+      success: false,
+      error: message
+    });
+  }
+
+  if (error.message === "Endast JPG, PNG och WEBP är tillåtna.") {
+    return res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+
+  return res.status(500).json({
+    success: false,
+    error: "Ett oväntat serverfel inträffade."
+  });
 });
 
 const PORT = process.env.PORT || 3000;
